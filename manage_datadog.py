@@ -13,18 +13,23 @@ Get alert id 5663:
 # manage_datadog.py alerts get -i 5663 > /tmp/alert_5663.json
 
 Update alert id 5663:
+# manage_datadog.py alerts get -i 5663 > /tmp/alert_5663.json
 edit /tmp/alert_5663.json. Change data how you like it. DO NOT MODIFY the id.
 # manage_datadog.py alerts put /tmp/alert_5663.json
 
 Delete alert id 5663:
+# manage_datadog.py alerts get -i 5663 > /tmp/alert_5663.json
 edit /tmp/alert_5663.json. Change the id to -5663.
 # manage_datadog.py alerts put /tmp/alert_5663.json
 
 Create a alert like 5663
-edit /tmp/alert_5663.json. Change id to 0.
+# manage_datadog.py alerts get -i 5663 > /tmp/alert_5663.json
+edit /tmp/alert_5663.json. Modify the data to reflect your new alert.  Change id to 0.
 # manage_datadog.py alerts put /tmp/alert_5663.json
+Note: In this example your new alert will not be id 5663 but will actually be 
+randomly generated.  Use 'getalerts' to check your work. 
 
-DASHBOARDS
+DASHBOARDS (Dashboards work just like alerts.)
 To get all dahsboards:
 manage_datadog.py dashboards get > /tmp/all_dashes.json
 
