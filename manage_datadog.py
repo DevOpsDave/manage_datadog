@@ -59,8 +59,6 @@ import ConfigParser
 
 from dogapi import dog_http_api as api
 
-import pdb
-
 class DataDogObject(object):
     def __repr__(self):
         return json.dumps(self.__dict__, indent=4)
@@ -80,7 +78,6 @@ class DataDogObjectCollection(object):
         """
         Get credentials and setup api.
         """
-        pdb.set_trace()
         api.api_key, api.application_key = self._return_credentials_(api_key,
             app_key, config_file)
         self.dapi = api
@@ -115,12 +112,10 @@ class DataDogObjectCollection(object):
         """
         At this point the value of config_file is valid.  So parse it.
         """
-        #pdb.set_trace()
         config = ConfigParser.ConfigParser()
         config.read(config_file)
         api_key = config.get('Main', 'api_key')
         app_key = config.get('Main', 'application_key')
-        #pdb.set_trace()
 
         """
         Make sure we got good values.
@@ -298,7 +293,6 @@ class Dashbrds(DataDogObjectCollection):
 
         # Get all the alerts from datadog.
         all_dashboards = self.dapi.dashboards()
-        #pdb.set_trace()
 
         # compile regex object if regex specified.
         if regex_str is None:
@@ -404,7 +398,6 @@ def main():
     # case/switch dictionary.
     switch = {'alerts': Alerts,
               'dashboards': Dashbrds}
-    pdb.set_trace()
     DDogObjColl = switch[args.subparser_name](args.api_key,args.app_key,
         args.config_file)
     DDogObjColl.do(args)
