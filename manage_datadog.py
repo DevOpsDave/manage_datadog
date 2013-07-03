@@ -21,6 +21,8 @@ Delete alert id 5663:
 # manage_datadog.py alerts get -i 5663 > /tmp/alert_5663.json
 edit /tmp/alert_5663.json. Change the id to -5663.
 # manage_datadog.py alerts put /tmp/alert_5663.json
+OR
+# manage_datadog.py alerts delete 5663
 
 Create a alert like 5663
 # manage_datadog.py alerts get -i 5663 > /tmp/alert_5663.json
@@ -74,12 +76,12 @@ class DataDogObject(object):
 
 
 class DataDogObjectCollection(object):
-    def __init__(self, api_key=None, app_key=None, config_file=None):
+    def __init__(self, api_key=None, app_key=None, config_file=None, team_section=None):
         """
         Get credentials and setup api.
         """
         api.api_key, api.application_key = self._return_credentials_(api_key,
-            app_key, config_file)
+            app_key, config_file, team_section)
         self.dapi = api
 
         """
@@ -87,7 +89,7 @@ class DataDogObjectCollection(object):
         """
         self.data = []
 
-    def _return_credentials_(self, api_key, app_key, config_file):
+    def _return_credentials_(self, api_key, app_key, config_file, team_section):
         """
         Determines datadog credentials.
         Api credentials are held here.  They are needed for the
@@ -106,16 +108,28 @@ class DataDogObjectCollection(object):
         """
         Fail if config_file is None or if the path is not legit.
         """
+        # This will resolve a ~ if used.
+        config_file = os.path.expanduser(config_file)
+        # Make sure config file is valid.
         if (config_file is None) or (os.path.isfile(config_file) is False):
             raise Exception('Do not have a valid config file!!!!!!')
 
         """
-        At this point the value of config_file is valid.  So parse it.
+        At this point the value of config_file is valid.  So parse it.  First get the api key from the connection
+        section.
         """
         config = ConfigParser.ConfigParser()
         config.read(config_file)
-        api_key = config.get('Main', 'api_key')
-        app_key = config.get('Main', 'application_key')
+        api_key = config.get('Connection', 'apikey')
+
+        """
+        Next get the appkey.  If team team_section does not equal None then get the appkey from there.  Otherwise look
+        in the Connection section.  Raise an exception if there is no app key to be found.
+        """
+        if team_section is None:
+            app_key = config.get('Connection', 'appkey')
+        else:
+            app_key = config.get(team_section, 'appkey')
 
         """
         Make sure we got good values.
@@ -156,9 +170,11 @@ class DataDogObjectCollection(object):
             if obj.id == int_id:
                 return obj
         return None
+
     def do(self, args):
         switch = {'get': self.get,
-                  'put': self.put}
+                  'put': self.put,
+                  'delete': self.delete}
         switch[args.sub_subparser_name](args)
 
     def get(self, args):
@@ -175,6 +191,8 @@ class DataDogObjectCollection(object):
         self.load_data_from_file(args.from_file)
         self.update_datadog()
 
+    def delete(self, args):
+        self.delete_obj(args.alert_id)
 
 class Alert(DataDogObject):
     """
@@ -201,7 +219,6 @@ class Alert(DataDogObject):
         self.name = alert_dict['name']
         self.query = alert_dict['query']
         self.silenced = alert_dict['silenced']
-
 
 class Alerts(DataDogObjectCollection):
     """
@@ -270,6 +287,11 @@ class Alerts(DataDogObjectCollection):
                 self.dapi.alert(alert.query, alert.name, alert.message,
                     alert.silenced)
 
+    def delete_obj(self, object_id):
+        """
+        Deletes alert by id
+        """
+        self.dapi.delete_alert(object_id)
 
 class Dashbrd(DataDogObject):
     """
@@ -280,7 +302,6 @@ class Dashbrd(DataDogObject):
         self.title = dash_dict['title']
         self.description = dash_dict['description']
         self.graphs = dash_dict['graphs']
-
 
 class Dashbrds(DataDogObjectCollection):
     def load_data_from_api(self, regex_str):
@@ -338,7 +359,6 @@ class Dashbrds(DataDogObjectCollection):
 
         return self.data
 
-
 def cmd_line(argv):
     """
     Get the command line arguments and options.
@@ -346,32 +366,40 @@ def cmd_line(argv):
     """
     parser = argparse.ArgumentParser(description="Manage datadog alerts")
     parser.add_argument('-c', '--config-file',
-        default='/etc/dd-agent/datadog.conf',
+        default='~/.dogrc',
         help='Specify datadog config file to get api key info.')
+    parser.add_argument('-t', '--team-section', default=None,
+                        help='Specify a team section in the config file to retrieve config values.')
     parser.add_argument('--api-key', default=None, help='Specify API key.')
     parser.add_argument('--app-key', default=None, help='Specify APP key.')
     subparsers = parser.add_subparsers(dest='subparser_name')
 
-    """Parent parsers"""
-    get_parent_parser = argparse.ArgumentParser(add_help=False)
-    get_parent_parser.add_argument('-i', '--get-id', type=int, default=0,
-        help='Specify an id of an object to retrieve.  [INTEGER]')
-    get_parent_parser.add_argument('-r', '--regex',
-        help='Regex string to use when selecting events.')
-
-    # alerts
+    """ Alerts. """
     alerts = subparsers.add_parser('alerts',
             description='Manage DataDog alerts.',
             help='Manage DataDog alerts.')
     alert_sub = alerts.add_subparsers(dest='sub_subparser_name')
+    # Get Alerts.
+    get_parent_parser = argparse.ArgumentParser(add_help=False)
+    get_parent_parser.add_argument('-i', '--get-id', type=int, default=0,
+                               help='Specify an id of an object to retrieve.  [INTEGER]')
+    get_parent_parser.add_argument('-r', '--regex',
+                               help='Regex string to use when selecting events.')
     alert_get = alert_sub.add_parser('get',
             description='Gets the alerts from datadog.',
             help='get alerts from datadog', parents=[get_parent_parser])
+    # Put Alerts.
     alert_put = alert_sub.add_parser('put',
             description='Takes alerts from file argument and puts them in datadog.',
             help='put alerts to datadog')
     alert_put.add_argument('from_file',
-        help='Use given file to create alerts. REQUIRED')
+            help='Use given file to create alerts. REQUIRED')
+    # Delete Alerts.
+    alert_delete = alert_sub.add_parser('delete',
+            description='Takes alert id as argument and deletes alert.',
+            help='Delete alert from datadog.')
+    alert_delete.add_argument('alert_id',
+            help='Use given id to delete alert. REQUIRED')
 
     # dashboards
     dash = subparsers.add_parser('dashboards',
@@ -398,12 +426,10 @@ def main():
     # case/switch dictionary.
     switch = {'alerts': Alerts,
               'dashboards': Dashbrds}
-    DDogObjColl = switch[args.subparser_name](args.api_key,args.app_key,
-        args.config_file)
+    DDogObjColl = switch[args.subparser_name](args.api_key,args.app_key,args.config_file,args.team_section)
     DDogObjColl.do(args)
 
     exit(0)
-
 
 if __name__ == "__main__":
     main()
