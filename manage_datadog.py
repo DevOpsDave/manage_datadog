@@ -4,7 +4,6 @@ This script is kind of a 'cloud formation' for setting for managing datadog
 objects.  The two main objects (ATM)  that the script can operate on are alerts
 and dashboards.  See the following usage examples:
 
-
 ALERTS
 Get all alerts:
 # manage_datadog.py alerts get > /tmp/all_alerts.json
@@ -49,6 +48,28 @@ manage_datadog.py dashboards put /tmp/dash_5663.json
 Create a dashboard like 5663
 edit /tmp/dash_5663.json. Change id to 0.
 manage_datadog.py dashboards put /tmp/dash_5663.json
+
+
+About Configuration
+For proper running of manage_datadog.py, create a ~/.dogrc file with your appkey and apikey.  If you do not know what an
+appkey or apikey is then ask someone who does know.  To find your apikey and appkey see
+https://app.datadoghq.com/account/settings#api.  Refere to the sample to see a generic .dogrc:
+[Connection]
+apikey = <long hex string>
+appkey = <long hex string>
+
+If you are like me and work on several teams then it would be much appreciated if you would seperate each appkey for each
+team in the .dogrc.  This will allow things to be more accountable.  See the example:
+[Connection]
+apikey = <long hex string>
+
+[switchboard-ops]
+appkey = <long hex string>
+
+[oracle-ops]
+appkey = <long hex string>
+
+By using the -t <config section name> any operation done will use the appointed appkey.
 """
 
 import re
@@ -73,7 +94,6 @@ class DataDogObject(object):
             return True
         else:
             return False
-
 
 class DataDogObjectCollection(object):
     def __init__(self, api_key=None, app_key=None, config_file=None, team_section=None):
@@ -126,25 +146,37 @@ class DataDogObjectCollection(object):
         Next get the appkey.  If team team_section does not equal None then get the appkey from there.  Otherwise look
         in the Connection section.  Raise an exception if there is no app key to be found.
         """
-        if team_section is None:
-            app_key = config.get('Connection', 'appkey')
-        else:
+        if team_section is None and app_key is None:
+            try:
+                app_key = config.get('Connection', 'appkey')
+            except ConfigParser.NoOptionError:
+                print('No value for appkey!')
+                sys.exit(1)
+        elif team_section is not None:
             app_key = config.get(team_section, 'appkey')
 
         """
         Make sure we got good values.
         """
         if (api_key == '') or (app_key == ''):
-            raise Exception('Bad values!!!!')
+            raise Exception('Bad api/app key values!!!!')
+
+        """
+        Make sure app key or api key is not None.
+        """
+        if (api_key == None):
+            raise Exception('No api key given.')
+
+        if (app_key == None):
+            raise Exception('No app key given.')
 
         """
         Everything looks good!
         """
         return api_key, app_key
 
-        return "%s" % (self.__dict__)
-
-        return "%s(%r)" % (self.__class__, self.__dict__)
+        #return "%s" % (self.__dict__)
+        #return "%s(%r)" % (self.__class__, self.__dict__)
 
     def __repr__(self):
         return json.dumps(self.__dict__, indent=4)
@@ -198,6 +230,7 @@ class Alert(DataDogObject):
     """
     Alert data type.  Holds data for specific alerts.
     """
+
     def __init__(self, alert_dict):
         """
         alert_dict must have the following:
@@ -219,6 +252,7 @@ class Alert(DataDogObject):
         self.name = alert_dict['name']
         self.query = alert_dict['query']
         self.silenced = alert_dict['silenced']
+
 
 class Alerts(DataDogObjectCollection):
     """
